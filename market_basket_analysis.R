@@ -7,15 +7,15 @@ library(tidyverse)
 library(bigQueryR)
 library(openxlsx)
 
-### setwd('C:/Users/imbrigliaf/Documents')
+### setwd('YOUR PATH')
 
 
-### Autenticazione
+### Auth to BQ
 ### bqr_auth()
 
-### Setto la query
-### query <- bqr_query(projectId = 'yoox-bq-export',
-###                   datasetId = '96332349',
+### Query
+### query <- bqr_query(projectId = 'YOURPROJECT',
+###                   datasetId = 'YOURDATASET',
 ###                   query = "SELECT
 ###                    fullVisitorId AS UserID,
 ###                    visitNumber as VisitNumber,
@@ -24,30 +24,33 @@ library(openxlsx)
 ###                    hits.eventInfo.eventAction as Action,
 ###                    hits.eventInfo.eventLabel as Label,
 ###                    hits.hitNumber AS HitNumber
-###                    FROM (TABLE_DATE_RANGE([yoox-bq-export:96332349.ga_sessions_], TIMESTAMP('2017-07-01'), TIMESTAMP('2017-09-30'))) 
+###                    FROM (TABLE_DATE_RANGE([yoox-bq-export:YOURDATASET.ga_sessions_], TIMESTAMP('2017-07-01'), TIMESTAMP('2017-09-30'))) 
 ###                    WHERE
 ###                    hits.eventInfo.eventAction IN ('AddToCart', 'Zoom') 
 ###                    AND hits.eventInfo.eventLabel != 'Error'
 ###                    ORDER BY UserID ASC, VisitNumber ASC"
 ###                  )
 
+### Encoding product variant to product
 ### query$cod8 <- substr(query$Label, 1, 8)
 
+### Writing query to .csv in order not to cache it on local
+### write.csv(query, myquery.csv', row.names = FALSE)
 
-### Scrivo csv in output
-### write.csv(query, '//yoox.net/ydata/Shared Data/DIGITAL MARKETING IN SEASON/DM/Analisi e report/1. Analisi In Season/Web Analytics-Repository_All/Analisi/Armani/QBR/adhoc/armani_q32017.csv', row.names = FALSE)
+### Reading gadata previously queryied from BQ and a product data mapping files with other information (Category, Division, Seasonality, etc...)
+gadata <- read.csv('myquery.csv'.csv', stringsAsFactors = FALSE)
+productdata <- read.xlsx('productdata.xlsx', startRow = 4)
 
-### Leggo dati GA e tabella di decodifica
-armani <- read.csv('//yoox.net/ydata/Shared Data/DIGITAL MARKETING IN SEASON/DM/Analisi e report/1. Analisi In Season/Web Analytics-Repository_All/Analisi/Armani/QBR/adhoc/armani_q32017.csv', stringsAsFactors = FALSE)
-c10 <- read.xlsx('//yoox.net/ydata/Shared Data/DIGITAL MARKETING IN SEASON/DM/Analisi e report/1. Analisi In Season/Web Analytics-Repository_All/Analisi/Armani/QBR/adhoc/armani_c10.xlsx', startRow = 4)
-
-final <- c10 %>% inner_join(armani, by = c("Code.10" = "Label"))
+### Joining gadata and productdata
+### Creating Sales Line + Macro Category and Micro Category columns
+final <- productdata %>% inner_join(gadata, by = c("Code.10" = "Label"))
 final %>% mutate(MicroDivision = paste0(Division, ' ', Micro),
                  MicroDivision2 = paste0(Sale.Line, ' ', Micro),
                  MacroDivision = paste0(Division, ' ', Macro),
                  MacroDivision2 = paste0(Sale.Line, ' ', Macro),
                  UserID = as.character(UserID)) -> final
 
+### Final function to be used after pre-process phase
 show_apriori <- function(col1 = 9, col2 = 1, support = 0.001, season = 'e mi') {
   
   final2 <- final %>% filter(Season == season)
@@ -55,24 +58,20 @@ show_apriori <- function(col1 = 9, col2 = 1, support = 0.001, season = 'e mi') {
   
   write.csv(final2, 'final.csv', row.names = FALSE)
   
-  ### Carico le transazioni su base c10 (eventualmente cambiare l'indice di colonna da 5 a 7 per i c8)
+  ### Loading transactions 
   mba <- read.transactions('final.csv'
                            , format = 'single'
                            , sep = ","
                            , cols = c(1, 2))
   
-  ### Ispeziono gli item più ricorrenti
+  ### Printing most frequent items
   print(itemFrequencyPlot(mba, topN=20, type="relative"))
   
-  ### Ricavo le regole
+  ### Building rules and returning it
   rules <- apriori(mba, parameter = list(supp = support, conf = 0.3))
   return(rules)
   
+  ### Plotting graph and table
   print(plot(rules, method = 'graph', interactive = TRUE))
-  ###inspectDT(rules)
+  inspectDT(rules)
 }
-
-### col = 16 -> Division + Category per stagione SS17
-### season = 'e mi' per stagione SS17
-### col = 17 -> Division + Category per stagione FW17
-### season = 'FW17' per l'omonima stagione
