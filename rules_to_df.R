@@ -13,6 +13,6 @@ arules.to.df <- function(rules) {
   ### Eseg
   else {
     rules.df <- as.data.frame(inspect(rules))
-    
+    return(rules.df)
   }
 }
