@@ -27,6 +27,7 @@ arules.to.df <- function(rules) {
         ### Cleaning from { }
         rules.df <- rules.df %>% mutate_all(funs(gsub('}', '', .))) %>%
           mutate_all(funs(ifelse(nchar(.)==11, substr(., start = 2, 12), .)))
+        rules.df$count <- as.numeric(rules.df$count)
         
         return(rules.df)
       }
@@ -54,6 +55,9 @@ arules.to.df <- function(rules) {
          new.rules.df <- new.rules.df %>% filter(lhs != "") %>% filter(lhs != '0') %>% 
            mutate_all(funs(gsub('}', '', .))) %>%
            mutate_all(funs(ifelse(nchar(.)==11, substr(., start = 2, 12), .)))
+         
+         new.rules.df$count <- as.numeric(new.rules.df$count)
+         new.rules.df <- new.rules.df %>% group_by(lhs, rhs) %>% summarise(count = sum(count))
          
          return(new.rules.df)
       }
