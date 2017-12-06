@@ -49,3 +49,47 @@ bqWithSqlData <- function(bq, sql){
   joined <- bq %>% inner_join(sql, c('Label' = 'Codice10'))
   return(joined)
 }
+
+bqToRules <- function(dataset, startdate, enddate, support = 0.001){
+  
+  ### Libraries
+  require(arules)
+  require(bigrquery)
+  require(tidyverse)
+  
+  ### Downloading BQ data
+  query <- paste0("SELECT
+                 fullVisitorId AS UserID,
+                 visitNumber as VisitNumber,
+                 hits.type as Type,
+                 hits.eventInfo.eventCategory as Category,
+                 hits.eventInfo.eventAction as Action,
+                 hits.eventInfo.eventLabel as Label,
+                 hits.hitNumber AS HitNumber
+              FROM (TABLE_DATE_RANGE([yoox-bq-export:",
+                  dataset,
+                  ".ga_sessions_], TIMESTAMP('",
+                  startdate,
+                  "'), TIMESTAMP('",
+                  enddate,
+                  "'))) 
+              WHERE
+                 hits.eventInfo.eventAction IN ('AddToCart', 'Zoom', 'ZoomOpen', 'AddToWishList') 
+                 AND hits.eventInfo.eventLabel != 'Error'
+              ORDER BY UserID ASC, VisitNumber ASC")
+  
+  bq <- query_exec(query, project = 'yoox-bq-export', max_pages = Inf)
+  
+  ### Loading bq as transactions
+  bq %>% select(UserID, Label) %>% write.csv('bq.csv', row.names=FALSE)
+  bqT <- read.transactions('bq.csv'
+                           , format = 'single'
+                           , sep = ","
+                           , cols = c(1, 2))
+  
+  ### Creating rules
+  rules <- apriori(bqT, parameter = list(supp = support, conf = 0.3))
+  
+  ### Returning rules and printing rules
+  return(rules)
+}
