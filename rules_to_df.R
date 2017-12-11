@@ -64,3 +64,6 @@ arules.to.df <- function(rules) {
     }
   }
 }
+
+
+#### Adding this line to test multiple contributors
