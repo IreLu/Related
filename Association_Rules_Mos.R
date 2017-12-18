@@ -33,7 +33,7 @@ setwd(myDirectory)
 # query_res <- query_exec(query, projectName, max_pages = Inf, use_legacy_sql = FALSE)
 # write.csv(query_res, "query_res.csv", row.names=F)
 
-query_res <- read_csv("C:/Users/luppinoi/Desktop/R Scripts/2. Related Items/Moschino/query_res.csv", 
+query_res <- read_csv(paste(myDirectory, "/query_res.csv", sep=""), 
                       col_types = cols(visitorId = col_character()))
 summary(query_res)
 
@@ -51,21 +51,26 @@ raw <- raw %>% arrange(visitorId, visitNumber, hitN)
   finalData <- inner_join(gaData, productsData, by=c("c8"="Code.8"))
 
 
-
+## Transactions
 transactions <- finalData %>% select(visitorId, c8)  
 write.csv(transactions, "transactions.csv", row.names = F)
 mba <- read.transactions("transactions.csv", format="single", sep=",", cols=c(1,2), skip=1)
 
-
+## Rules
 itemFrequencyPlot(mba, topN=20, type='relative')
 rules <- apriori(mba, parameter = list(supp=0.0005, conf=0.2))
 
 inspect(rules)
 print(plot(rules, method = 'graph', engine="interactive"))
 inspectDT(rules)
+db_rules <- as.data.frame(inspect(rules))
+write.csv(db_rules, "rules.csv", row.names = F)
 
-infoC8 <- finalData %>% group_by(c8, Macro, Micro, Sale.Line, Sex, Age.Range) %>% summarise(Count=n())
 
+## apriori algorithm doesn't analysis temporal sequences, so changing transactions' order doesn't affect the output.
+
+
+rawinfoC8 <- finalData %>% group_by(c8, Macro, Micro, Sale.Line, Sex, Age.Range) %>% summarise(Count=n())
 
 par(mar=c(8,3,1,0) + 0.1)
 barplot(sort(table(infoC8$Macro), decreasing = T), las=2, main="Prodotti Acquistati per Macro")
@@ -88,8 +93,9 @@ dx_info <- inner_join(dx, infoC8, by="c8")
 
 str(rules)
 copyRules <- rules
-copyRules@lhs@itemInfo$labels[rules@lhs@data@i[1:45]+1] <- as.character(paste(sx_info$Sex, sx_info$Macro, sep="_"))
+copyRules@lhs@itemInfo$labels[copyRules@lhs@data@i[1:45]+1] <- as.character(paste(sx_info$Sex, sx_info$Macro, sep="_"))
 inspect(copyRules)
-copyRules@rhs@itemInfo$labels[rules@rhs@data@i[1:45]+1] <- as.character(paste(dx_info$Sex, dx_info$Macro, sep="_"))
+copyRules@rhs@itemInfo$labels[copyRules@rhs@data@i[1:45]+1] <- as.character(paste(dx_info$Sex, dx_info$Macro, sep="_"))
 inspect(copyRules)
-
+print(plot(copyRules, method = 'graph', engine="interactive"))
+inspectDT(copyRules)
